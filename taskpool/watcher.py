@@ -58,13 +58,18 @@ class TaskWatcher:
         return (self.validate_task(msg['task']), TaskWatcher.validate_args(msg.get('args')),
                 TaskWatcher.validate_kwargs(msg.get('kwargs')), sync)
 
-    def __init__(self, max_threads=4, redis_url='redis://redis:6379/0', task_key='task-pool', tasks=None):
+    def __init__(self,
+                 max_threads=4,
+                 redis_url='redis://redis:6379/0',
+                 task_key='task-pool',
+                 tasks=None,
+                 testing=settings.TESTING):
         if not tasks:
             raise TypeError("No 'tasks' module specified.")
 
         self.max_threads = max_threads
         self.master_thread = threading.Thread(target=self._watch)
-        if settings.TESTING:
+        if testing:
             # TODO: Core does this too and it's not the prettiest...
             self.redis = Mock()
         else:

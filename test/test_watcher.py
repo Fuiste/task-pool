@@ -1,4 +1,5 @@
 import json
+import sys
 import threading
 import time
 
@@ -7,27 +8,30 @@ import pytest
 from taskpool.watcher import InvalidSignatureException, TaskNotFoundException, TaskWatcher
 
 
+def fake_test(a, b):
+    print("{}-{}".format(a, b))
+
+
 @pytest.mark.parametrize('kwargs', [{'max_threads': 1, 'task_key': 'foo'},
                                     {'task_key': 'foo'},
                                     {'max_threads': 1}])
 def test_create_watcher(kwargs):
-    tw = TaskWatcher(**kwargs)
+    tw = TaskWatcher(tasks=sys.modules[__name__], **kwargs)
 
     assert tw.task_key == kwargs.get('task_key', 'task-pool')
     assert tw.max_threads == kwargs.get('max_threads', 4)
 
 
 def test_spawn_task_thread():
-    tw = TaskWatcher()
+    tw = TaskWatcher(tasks=sys.modules[__name__])
     t = tw.spawn_task_thread(lambda: None, None, None)
 
     assert isinstance(t, threading.Thread)
     assert not t.is_alive()
 
 
-def test_spawn_watch_thread(mocker):
-    mocker.patch('ionic_api_apps.tasks.container.redis', autospec=True)
-    tw = TaskWatcher()
+def test_spawn_watch_thread():
+    tw = TaskWatcher(testing=True, tasks=sys.modules[__name__])
     mt = tw.watch()
 
     assert mt.is_alive()
@@ -38,16 +42,17 @@ def test_spawn_watch_thread(mocker):
     assert not mt.is_alive()
 
 
-@pytest.mark.parametrize('msg', [{'task': 'sanity', 'args': [1, 2], 'kwargs': {'foo': 'bar'}},
-                                 {'task': 'sanity', 'kwargs': {'foo': 'bar'}, 'sync': True},
-                                 {'task': 'sanity', 'kwargs': {'foo': 'bar'}},
+@pytest.mark.parametrize('msg', [{'task': 'fake_test', 'args': [1, 2], 'kwargs': {'foo': 'bar'}},
+                                 {'task': 'fake_test', 'kwargs': {'foo': 'bar'}, 'sync': True},
+                                 {'task': 'fake_test', 'kwargs': {'foo': 'bar'}},
                                  {'args': [1, 2], 'kwargs': {'foo': 'bar'}},
-                                 {'task': 'sanity', 'args': 'baz'},
+                                 {'task': 'fake_test', 'args': 'baz'},
                                  {'task': 'bazinga', 'args': [1, 2]},
-                                 {'task': 'sanity', 'kwargs': 23}])
+                                 {'task': 'fake_test', 'kwargs': 23}])
 def test_validate_message(msg):
+    tw = TaskWatcher(tasks=sys.modules[__name__])
     try:
-        t, a, k, s = TaskWatcher.validate_message(json.dumps(msg))
+        t, a, k, s = tw.validate_message(json.dumps(msg))
 
         assert callable(t)
         if msg.get('args'):
@@ -59,7 +64,7 @@ def test_validate_message(msg):
     except Exception as e:
         if not msg.get('task'):
             assert isinstance(e, KeyError)
-        elif not getattr(tasks, msg.get('task'), None):
+        elif not getattr(sys.modules[__name__], msg.get('task'), None):
             assert isinstance(e, TaskNotFoundException)
         elif msg.get('kwargs') and not isinstance(msg.get('kwargs'), dict):
             assert isinstance(e, InvalidSignatureException)
