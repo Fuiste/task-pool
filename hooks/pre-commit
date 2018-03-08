@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+flake8 --exclude venv .
+s=$?
+
+if [[ 0 == $s ]]; then
+    py.test
+    s=$?
+fi
+
+exit $s
