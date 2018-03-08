@@ -10,6 +10,7 @@ from taskpool.pool import InvalidSignatureException, TaskNotFoundException, Task
 
 def fake_test(a, b):
     print("{}-{}".format(a, b))
+    return True
 
 
 @pytest.mark.parametrize('kwargs', [{'max_threads': 1, 'task_key': 'foo'},
@@ -20,6 +21,12 @@ def test_init_watcher(kwargs):
 
     assert tw.task_key == kwargs.get('task_key', 'task-pool')
     assert tw.max_threads == kwargs.get('max_threads', 4)
+
+
+def test_init_tasks():
+    tw = TaskWatcher(testing=True, tasks=sys.modules[__name__])
+
+    assert 'fake_test' in tw.tasks
 
 
 def test_spawn_task_thread():

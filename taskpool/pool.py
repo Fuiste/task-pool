@@ -1,6 +1,7 @@
 import json
 import logging
 import threading
+from types import ModuleType
 from unittest.mock import Mock
 
 from redis import StrictRedis
@@ -30,7 +31,7 @@ class TaskWatcher:
     @staticmethod
     def validate_args(args):
         if args is not None and not isinstance(args, tuple) and not isinstance(args, list):
-            raise InvalidSignatureException("Args must be a tuple, got {}".format(args))
+            raise InvalidSignatureException("Args must be a tuple or list, got {}".format(args))
 
         if isinstance(args, list):
             return tuple(args)
@@ -45,7 +46,7 @@ class TaskWatcher:
         return kwargs
 
     def validate_task(self, task):
-        t = getattr(self.tasks, task, None)
+        t = getattr(self.__tasks, task, None)
         if not t:
             raise TaskNotFoundException("Task {} not found".format(task))
 
@@ -78,6 +79,17 @@ class TaskWatcher:
             self.redis = StrictRedis.from_url(redis_url)
         self.tasks = tasks
         self.task_key = task_key
+
+    @property
+    def tasks(self):
+        return [t for t in dir(self.__tasks) if '__' not in t]
+
+    @tasks.setter
+    def tasks(self, tasks):
+        if isinstance(tasks, ModuleType):
+            self.__tasks = tasks
+        else:
+            raise TypeError("Tasks must be a module")
 
     def available_threads(self):
         self.threads = [t for t in self.threads if t.is_alive()]

@@ -14,8 +14,6 @@ class TaskClient:
     Client for enqueuing tasks
     """
 
-    DEFAULT_TASK_KEY = 'api-async-task-queue'
-
     def __init__(self, redis_url='redis://redis:6379/0', task_key='task-pool', testing=settings.TESTING):
         if testing:
             # TODO: Core does this too and it's not the prettiest...
