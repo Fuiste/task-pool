@@ -1,10 +1,9 @@
 import json
 import logging
 import threading
-
 from unittest.mock import Mock
 
-from redis import ConnectionPool, StrictRedis
+from redis import StrictRedis
 
 from taskpool import settings
 
@@ -21,6 +20,9 @@ class TaskNotFoundException(Exception):
 
 
 class TaskWatcher:
+    """
+    Pool of threads for running tasks
+    """
 
     __watching = False
     threads = []

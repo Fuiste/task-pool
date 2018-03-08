@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from taskpool.watcher import InvalidSignatureException, TaskNotFoundException, TaskWatcher
+from taskpool.pool import InvalidSignatureException, TaskNotFoundException, TaskWatcher
 
 
 def fake_test(a, b):
@@ -15,15 +15,15 @@ def fake_test(a, b):
 @pytest.mark.parametrize('kwargs', [{'max_threads': 1, 'task_key': 'foo'},
                                     {'task_key': 'foo'},
                                     {'max_threads': 1}])
-def test_create_watcher(kwargs):
-    tw = TaskWatcher(tasks=sys.modules[__name__], **kwargs)
+def test_init_watcher(kwargs):
+    tw = TaskWatcher(testing=True, tasks=sys.modules[__name__], **kwargs)
 
     assert tw.task_key == kwargs.get('task_key', 'task-pool')
     assert tw.max_threads == kwargs.get('max_threads', 4)
 
 
 def test_spawn_task_thread():
-    tw = TaskWatcher(tasks=sys.modules[__name__])
+    tw = TaskWatcher(testing=True, tasks=sys.modules[__name__])
     t = tw.spawn_task_thread(lambda: None, None, None)
 
     assert isinstance(t, threading.Thread)
@@ -50,7 +50,7 @@ def test_spawn_watch_thread():
                                  {'task': 'bazinga', 'args': [1, 2]},
                                  {'task': 'fake_test', 'kwargs': 23}])
 def test_validate_message(msg):
-    tw = TaskWatcher(tasks=sys.modules[__name__])
+    tw = TaskWatcher(testing=True, tasks=sys.modules[__name__])
     try:
         t, a, k, s = tw.validate_message(json.dumps(msg))
 
