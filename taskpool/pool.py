@@ -6,8 +6,6 @@ from unittest.mock import Mock
 
 from redis import StrictRedis
 
-from taskpool import settings
-
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +64,7 @@ class TaskWatcher:
                  redis_url='redis://redis:6379/0',
                  task_key='task-pool',
                  tasks=None,
-                 testing=settings.TESTING):
+                 testing=False):
         if not tasks:
             raise TypeError("No 'tasks' module specified.")
 

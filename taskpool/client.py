@@ -3,8 +3,6 @@ from unittest.mock import Mock
 
 from redis import StrictRedis
 
-from taskpool import settings
-
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +12,7 @@ class TaskClient:
     Client for enqueuing tasks
     """
 
-    def __init__(self, redis_url='redis://redis:6379/0', task_key='task-pool', testing=settings.TESTING):
+    def __init__(self, redis_url='redis://redis:6379/0', task_key='task-pool', testing=False):
         if testing:
             # TODO: Core does this too and it's not the prettiest...
             self.redis = Mock()
