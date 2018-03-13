@@ -39,14 +39,16 @@ def test_spawn_task_thread():
 
 def test_spawn_watch_thread():
     tw = TaskWatcher(testing=True, tasks=sys.modules[__name__])
-    mt = tw.watch()
+    tw.watch()
 
-    assert mt.is_alive()
+    assert tw.master_thread.is_alive()
+    assert tw.schedule_thread.is_alive()
 
     tw.unwatch()
     time.sleep(1)
 
-    assert not mt.is_alive()
+    assert not tw.master_thread.is_alive()
+    assert not tw.schedule_thread.is_alive()
 
 
 @pytest.mark.parametrize('msg', [{'task': 'fake_test', 'args': [1, 2], 'kwargs': {'foo': 'bar'}},

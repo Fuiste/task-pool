@@ -1,9 +1,11 @@
 import json
 import logging
 import threading
+from datetime import datetime
 from types import ModuleType
 from unittest.mock import Mock
 
+from croniter import croniter
 from redis import StrictRedis
 
 
@@ -25,39 +27,7 @@ class TaskWatcher:
 
     __watching = False
     threads = []
-
-    @staticmethod
-    def validate_args(args):
-        if args is not None and not isinstance(args, tuple) and not isinstance(args, list):
-            raise InvalidSignatureException("Args must be a tuple or list, got {}".format(args))
-
-        if isinstance(args, list):
-            return tuple(args)
-
-        return args
-
-    @staticmethod
-    def validate_kwargs(kwargs):
-        if kwargs is not None and not isinstance(kwargs, dict):
-            raise InvalidSignatureException("Kwargs must be a dict, got {}".format(kwargs))
-
-        return kwargs
-
-    def validate_task(self, task):
-        t = getattr(self.__tasks, task, None)
-        if not t:
-            raise TaskNotFoundException("Task {} not found".format(task))
-
-        return t
-
-    def validate_message(self, raw):
-        msg = json.loads(raw)
-        sync = False
-        if msg.get('sync'):
-            sync = True
-
-        return (self.validate_task(msg['task']), TaskWatcher.validate_args(msg.get('args')),
-                TaskWatcher.validate_kwargs(msg.get('kwargs')), sync)
+    scheduled_tasks = []
 
     def __init__(self,
                  max_threads=4,
@@ -70,6 +40,7 @@ class TaskWatcher:
 
         self.max_threads = max_threads
         self.master_thread = threading.Thread(target=self._watch)
+        self.schedule_thread = threading.Thread(target=self._watch_scheduled)
         if testing:
             # TODO: Core does this too and it's not the prettiest...
             self.redis = Mock()
@@ -77,6 +48,34 @@ class TaskWatcher:
             self.redis = StrictRedis.from_url(redis_url)
         self.tasks = tasks
         self.task_key = task_key
+
+    def validate_message(self, raw):
+        msg = json.loads(raw)
+        args = msg.get('args')
+        kwargs = msg.get('kwargs')
+        task = msg['task']
+        sync = False
+        if msg.get('sync'):
+            sync = True
+
+        # Validate args
+        if args is not None and not isinstance(args, tuple) and not isinstance(args, list):
+            raise InvalidSignatureException("Args must be a tuple or list, got {}".format(args))
+
+        # Marshall args to tuple
+        if isinstance(args, list):
+            args = tuple(args)
+
+        # Validate kwargs
+        if kwargs is not None and not isinstance(kwargs, dict):
+            raise InvalidSignatureException("Kwargs must be a dict, got {}".format(kwargs))
+
+        # Validate task
+        t = getattr(self.__tasks, task, None)
+        if not t:
+            raise TaskNotFoundException("Task {} not found".format(task))
+
+        return (t, args, kwargs, sync)
 
     @property
     def tasks(self):
@@ -99,23 +98,54 @@ class TaskWatcher:
         logger.info("Running task '{}' with args {} and kwargs {}".format(task, args, kwargs))
         if task is not None and callable(task):
             self.spawn_task_thread(task, args, kwargs).start()
+    
+    def handle_scheduled_task(self, task, cron_str, next_run, args, kwargs):
+        if datetime.now() > next_run:
+            self.spawn_task_thread(task, args, kwargs).start()
+            new_next = datetime.fromtimestamp(croniter(cron_str, datetime.now()))
+            
+            return (task, cron_str, new_next, args, kwargs)
+
+        return (task, cron_str, next_run, args, kwargs)
+
+    def handle_scheduled_tasks(self):
+        new_scheduled = []
+        for t in self.scheduled_tasks:
+            new_scheduled = self.handle_scheduled_task(*t)
+
+        self.scheduled_tasks = new_scheduled
 
     def spawn_task_thread(self, task, args, kwargs):
         t = threading.Thread(target=task, args=args or (), kwargs=kwargs or {})
         self.threads.append(t)
         return t
 
+    def schedule(self, task, cron_str, *args, **kwargs):
+        # Task needs to be callable
+        if not callable(task):
+            raise TypeError("{} is not callable".format(task))
+
+        # Validate cron schedule
+        if not crontiter.is_valid(cron_str):
+            raise ValueError("'{}' is not a valid cron string.".format(cron_str))
+
+        next_run = datetime.fromtimestamp(croniter(cron_str, datetime.now()))
+        
+        self.scheduled_tasks.append((task, cron_str, next_run, args, kwargs))
+
     def watch(self):
+        self.__watching = True
+
+        # Make sure both watchers are running
         if not self.master_thread.is_alive():
             self.master_thread.start()
-
-        return self.master_thread
+        if not self.schedule_thread.is_alive():
+            self.schedule_thread.start()
 
     def _watch(self):
         # Subscribe to task queue
         pubsub = self.redis.pubsub()
         pubsub.subscribe(self.task_key)
-        self.__watching = True
 
         # Main watcher loop
         while self.__watching:
@@ -126,6 +156,15 @@ class TaskWatcher:
                         # It's a real message, let's go
                         task, args, kwargs, sync = self.validate_message(msg.get('data', b'{}').decode('utf-8'))
                         self.handle_message(task, args, kwargs, sync)
+            except Exception as e:
+                logger.warning(e)
+
+    def _watch_scheduled(self):
+        # Main scheduler loop
+        while self.__watching:
+            try:
+                if self.available_threads() > 0:
+                    self.handle_scheduled_tasks()
             except Exception as e:
                 logger.warning(e)
 
