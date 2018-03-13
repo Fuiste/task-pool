@@ -2,6 +2,7 @@ import json
 import sys
 import threading
 import time
+from datetime import datetime
 
 import pytest
 
@@ -30,11 +31,18 @@ def test_init_tasks():
 
 
 def test_spawn_task_thread():
+    def take_time():
+        time.sleep(1)
+
     tw = TaskWatcher(testing=True, tasks=sys.modules[__name__])
-    t = tw.spawn_task_thread(lambda: None, None, None)
+    t = tw.spawn_task_thread(take_time, None, None)
 
     assert isinstance(t, threading.Thread)
     assert not t.is_alive()
+
+    t.start()
+
+    assert t.is_alive()
 
 
 def test_spawn_watch_thread():
@@ -49,6 +57,20 @@ def test_spawn_watch_thread():
 
     assert not tw.master_thread.is_alive()
     assert not tw.schedule_thread.is_alive()
+
+
+def test_schedule_task():
+    def task():
+        return True
+
+    tw = TaskWatcher(testing=True, tasks=sys.modules[__name__])
+    tw.watch()
+    tw.schedule(task, '1 * * * *')
+
+    assert len(tw.scheduled_tasks) == 1
+    assert datetime.now() > tw.scheduled_tasks[0][2]
+
+    tw.unwatch()
 
 
 @pytest.mark.parametrize('msg', [{'task': 'fake_test', 'args': [1, 2], 'kwargs': {'foo': 'bar'}},

@@ -26,7 +26,7 @@ class TaskWatcher:
     """
 
     __watching = False
-    threads = []
+    __threads = []
     scheduled_tasks = []
 
     def __init__(self,
@@ -89,9 +89,9 @@ class TaskWatcher:
             raise TypeError("Tasks must be a module")
 
     def available_threads(self):
-        self.threads = [t for t in self.threads if t.is_alive()]
+        self.__threads = [t for t in self.__threads if t.is_alive()]
 
-        return self.max_threads - len(self.threads)
+        return self.max_threads - len(self.__threads)
 
     def handle_message(self, task, args, kwargs, _):
         # TODO: Handle the sync value, currently ignored
@@ -102,7 +102,7 @@ class TaskWatcher:
     def handle_scheduled_task(self, task, cron_str, next_run, args, kwargs):
         if datetime.now() > next_run:
             self.spawn_task_thread(task, args, kwargs).start()
-            new_next = datetime.fromtimestamp(croniter(cron_str, datetime.now()))
+            new_next = datetime.fromtimestamp(croniter(cron_str, datetime.now()).get_next())
             
             return (task, cron_str, new_next, args, kwargs)
 
@@ -117,7 +117,7 @@ class TaskWatcher:
 
     def spawn_task_thread(self, task, args, kwargs):
         t = threading.Thread(target=task, args=args or (), kwargs=kwargs or {})
-        self.threads.append(t)
+        self.__threads.append(t)
         return t
 
     def schedule(self, task, cron_str, *args, **kwargs):
@@ -126,10 +126,10 @@ class TaskWatcher:
             raise TypeError("{} is not callable".format(task))
 
         # Validate cron schedule
-        if not crontiter.is_valid(cron_str):
+        if not croniter.is_valid(cron_str):
             raise ValueError("'{}' is not a valid cron string.".format(cron_str))
 
-        next_run = datetime.fromtimestamp(croniter(cron_str, datetime.now()))
+        next_run = datetime.fromtimestamp(croniter(cron_str, datetime.now()).get_next())
         
         self.scheduled_tasks.append((task, cron_str, next_run, args, kwargs))
 
@@ -149,15 +149,15 @@ class TaskWatcher:
 
         # Main watcher loop
         while self.__watching:
-            try:
-                if self.available_threads() > 0:
+            if self.available_threads() > 0:
+                try:
                     msg = pubsub.get_message()
-                    if msg is not None and msg['type'] == 'message':
+                    if msg is not None and msg.get('type') == 'message':
                         # It's a real message, let's go
                         task, args, kwargs, sync = self.validate_message(msg.get('data', b'{}').decode('utf-8'))
                         self.handle_message(task, args, kwargs, sync)
-            except Exception as e:
-                logger.warning(e)
+                except Exception as e:
+                    logger.warning(e)
 
     def _watch_scheduled(self):
         # Main scheduler loop
