@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='taskpool',
-      version='0.0.3',
+      version='0.0.4',
       description='Task runner for Python microservices',
       url='https://github.com/ionic-team/task-pool',
       author='Ionic',
