@@ -20,6 +20,53 @@ class TaskNotFoundException(Exception):
     pass
 
 
+class ScheduledTask:
+    """
+    Represents a task to be run periodically, like a cronjob
+    """
+
+    def __init__(self, task=None, schedule=None, args=(), kwargs={}):
+        # Task needs to be callable
+        if not callable(task):
+            raise TypeError("{} is not callable".format(task))
+
+        # Validate cron schedule
+        if not croniter.is_valid(schedule):
+            raise ValueError("'{}' is not a valid cron string.".format(schedule))
+
+        # Validate args
+        if args is not None and not isinstance(args, tuple) and not isinstance(args, list):
+            raise InvalidSignatureException("Args must be a tuple or list, got {}".format(args))
+
+        # Marshall args to tuple
+        if isinstance(args, list):
+            args = tuple(args)
+
+        # Validate kwargs
+        if kwargs is not None and not isinstance(kwargs, dict):
+            raise InvalidSignatureException("Kwargs must be a dict, got {}".format(kwargs))
+
+        self.task = task
+        self.schedule = schedule
+        self.next_run = datetime.fromtimestamp(croniter(schedule, datetime.now()).get_next())
+        self.args = args
+        self.kwargs = kwargs
+
+    def should_run(self):
+        """
+        Is this task due for enqueuing?
+        """
+        if datetime.now() > self.next_run:
+            return True
+
+        return False
+
+    def update_runtime(self):
+        """
+        Update the task's next scheduled runtime
+        """
+        self.next_run = datetime.fromtimestamp(croniter(self.schedule, datetime.now()).get_next())
+
 class TaskWatcher:
     """
     Pool of threads for running tasks
@@ -98,22 +145,12 @@ class TaskWatcher:
         logger.info("Running task '{}' with args {} and kwargs {}".format(task, args, kwargs))
         if task is not None and callable(task):
             self.spawn_task_thread(task, args, kwargs).start()
-    
-    def handle_scheduled_task(self, task, cron_str, next_run, args, kwargs):
-        if datetime.now() > next_run:
-            self.spawn_task_thread(task, args, kwargs).start()
-            new_next = datetime.fromtimestamp(croniter(cron_str, datetime.now()).get_next())
-            
-            return (task, cron_str, new_next, args, kwargs)
-
-        return (task, cron_str, next_run, args, kwargs)
 
     def handle_scheduled_tasks(self):
-        new_scheduled = []
         for t in self.scheduled_tasks:
-            new_scheduled = self.handle_scheduled_task(*t)
-
-        self.scheduled_tasks = new_scheduled
+            if t.should_run():
+                self.spawn_task_thread(t.task, t.args, t.kwargs).start()
+                t.update_runtime()
 
     def spawn_task_thread(self, task, args, kwargs):
         t = threading.Thread(target=task, args=args or (), kwargs=kwargs or {})
@@ -121,17 +158,7 @@ class TaskWatcher:
         return t
 
     def schedule(self, task, cron_str, *args, **kwargs):
-        # Task needs to be callable
-        if not callable(task):
-            raise TypeError("{} is not callable".format(task))
-
-        # Validate cron schedule
-        if not croniter.is_valid(cron_str):
-            raise ValueError("'{}' is not a valid cron string.".format(cron_str))
-
-        next_run = datetime.fromtimestamp(croniter(cron_str, datetime.now()).get_next())
-        
-        self.scheduled_tasks.append((task, cron_str, next_run, args, kwargs))
+        self.scheduled_tasks.append(ScheduledTask(task, cron_str, args=args, kwargs=kwargs))
 
     def watch(self):
         self.__watching = True

@@ -65,10 +65,10 @@ def test_schedule_task():
 
     tw = TaskWatcher(testing=True, tasks=sys.modules[__name__])
     tw.watch()
-    tw.schedule(task, '1 * * * *')
+    tw.schedule(task, '0 0 0 0 *')
 
     assert len(tw.scheduled_tasks) == 1
-    assert datetime.now() > tw.scheduled_tasks[0][2]
+    assert datetime.now() > tw.scheduled_tasks[0].next_run
 
     tw.unwatch()
 
