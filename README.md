@@ -2,6 +2,12 @@
 
 Threaded pool for running async tasks in Python apps. 
 
+## Installation
+
+```python
+pip install taskpool-redis
+```
+
 ## Creating a Task Consumer
 
 ```python
