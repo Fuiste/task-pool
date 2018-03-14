@@ -40,15 +40,16 @@ task_client.call('my-sick-task', arg, kwarg='foo')
 You can also schedule _any_ function for periodic run in the pool.  It uses cronjob syntax.
 
 ```python
-# Init the pool
 from taskpool.pool import TaskWatcher
 from myproject.periodic import periodic_task
 from myproject.tasks import taskmodule
 
+# Init the pool
 pool = TaskWatcher(max_threads=4,
                    redis_url='some-redis-url',
                    task_key='your-key',
                    tasks=taskmodule)
+# Start handling tasks
 pool.watch()
 
 # Run a task every month with args and kwargs
