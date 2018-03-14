@@ -49,6 +49,7 @@ pool = TaskWatcher(max_threads=4,
                    redis_url='some-redis-url',
                    task_key='your-key',
                    tasks=taskmodule)
+
 # Start handling tasks
 pool.watch()
 
