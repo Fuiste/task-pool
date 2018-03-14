@@ -67,6 +67,7 @@ class ScheduledTask:
         """
         self.next_run = datetime.fromtimestamp(croniter(self.schedule, datetime.now()).get_next())
 
+
 class TaskWatcher:
     """
     Pool of threads for running tasks
@@ -149,8 +150,8 @@ class TaskWatcher:
     def handle_scheduled_tasks(self):
         for t in self.scheduled_tasks:
             if t.should_run():
-                self.spawn_task_thread(t.task, t.args, t.kwargs).start()
                 t.update_runtime()
+                self.spawn_task_thread(t.task, t.args, t.kwargs).start()
 
     def spawn_task_thread(self, task, args, kwargs):
         t = threading.Thread(target=task, args=args or (), kwargs=kwargs or {})

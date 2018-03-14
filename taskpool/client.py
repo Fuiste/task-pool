@@ -1,5 +1,6 @@
 import json
 import logging
+import uuid
 from unittest.mock import Mock
 
 from redis import StrictRedis

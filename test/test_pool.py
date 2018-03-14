@@ -6,12 +6,34 @@ from datetime import datetime
 
 import pytest
 
-from taskpool.pool import InvalidSignatureException, TaskNotFoundException, TaskWatcher
+from taskpool.pool import InvalidSignatureException, ScheduledTask, TaskNotFoundException, TaskWatcher
 
 
 def fake_test(a, b):
     print("{}-{}".format(a, b))
     return True
+
+
+def test_init_scheduled():
+    st = ScheduledTask(fake_test, '0 0 0 0 *')
+
+    assert st.next_run > datetime.now()
+
+
+def test_should_run():
+    st = ScheduledTask(fake_test, '0 0 0 0 *')
+
+    assert not st.should_run()
+
+
+def test_update_runtime():
+    st = ScheduledTask(fake_test, '* * * * *')
+    cur = st.next_run
+
+    st.schedule = '0 0 0 * 0'
+    st.update_runtime()
+
+    assert cur != st.next_run
 
 
 @pytest.mark.parametrize('kwargs', [{'max_threads': 1, 'task_key': 'foo'},
@@ -64,13 +86,10 @@ def test_schedule_task():
         return True
 
     tw = TaskWatcher(testing=True, tasks=sys.modules[__name__])
-    tw.watch()
     tw.schedule(task, '0 0 0 0 *')
 
     assert len(tw.scheduled_tasks) == 1
-    assert datetime.now() > tw.scheduled_tasks[0].next_run
-
-    tw.unwatch()
+    assert datetime.now() < tw.scheduled_tasks[0].next_run
 
 
 @pytest.mark.parametrize('msg', [{'task': 'fake_test', 'args': [1, 2], 'kwargs': {'foo': 'bar'}},
