@@ -2,10 +2,6 @@
 
 Threaded pool for running async tasks in Python apps. 
 
-## Installation
-
-use `pip` (See the way we install `ionic-api-core` for details).
-
 ## Enqueuing Tasks
 
 ```python
