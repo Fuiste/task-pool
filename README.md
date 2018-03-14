@@ -1,5 +1,6 @@
 # task-pool
-Threaded pool for running async tasks on Python microservices
+
+Threaded pool for running async tasks in Python apps. 
 
 ## Installation
 
